@@ -1,0 +1,384 @@
+# Marrow — AI Memory Infrastructure
+
+**The open standard for AI memory. DX-first. Model-agnostic. Compliance built in.**
+
+*trymarrow.io* (or getmarrow.io)
+
+---
+
+## Current Status (Shipped)
+
+**What we built:**
+- **API:** FastAPI backend with store, recall, update, forget. All four endpoints working.
+- **Hosted:** `POST /v1/apps` — devs create an app, get API key. No seed script needed.
+- **Auth:** API key via X-API-Key or Authorization: Bearer. App-scoped.
+- **Storage:** Supabase (Postgres + pgvector). Semantic search via OpenAI embeddings.
+- **Deploy:** Railway-ready. Procfile, railway.json. One deploy = public URL.
+- **Docs:** README (hosted-first), DEPLOY.md, backend/README.md. API docs at /docs.
+
+**Not yet built:** JavaScript SDK, AMP spec, billing. Python SDK done (`pip install marrow` from sdk/python).
+
+---
+
+## Executive Summary
+
+We are building the **memory layer for AI**—the Stripe/Twilio of persistent memory. Every AI application needs memory. Today, developers build it from scratch, use fragmented solutions, or lock into walled gardens. Marrow: **DX-first** (we lead with developer experience), **model-agnostic** (works with any LLM), **compliance built in** (SOC2, GDPR from day one). Our goal: become the standard that model providers and developers use.
+
+---
+
+## The Problem
+
+### 1. AI Has No Memory
+
+- **LLMs are stateless.** Each API call is independent. No continuity across sessions.
+- **Context windows are finite.** Even 200k tokens isn't enough for long-term knowledge.
+- **Every app reinvents the wheel.** Developers build custom RAG, vector DBs, and retrieval logic.
+- **Users repeat themselves.** "My name is Jeff." "I prefer short answers." "I'm building a memory startup." Said in every app, every time.
+
+### 2. Memory Is Fragmented
+
+- **Walled gardens.** ChatGPT remembers you in ChatGPT. Claude remembers you in Claude. Nothing crosses over.
+- **No standard.** Every implementation is different. No interoperability. Developers rebuild the same thing every time.
+
+### 3. Compliance Is an Afterthought
+
+- **Enterprise can't adopt** AI memory without SOC2, GDPR, data residency.
+- **Developers need** a solution that meets compliance out of the box—not something they build themselves.
+
+### 4. Model Providers Can't Solve This Alone
+
+- OpenAI, Anthropic, Google focus on models. Memory is infrastructure.
+- They need a layer that: works with any model, integrates simply, meets compliance.
+- Building it in-house is a distraction. Partnering with a standard is the path.
+
+---
+
+## What We're Building
+
+### The Product: Memory Infrastructure as a Service
+
+A **developer API** that provides:
+
+| Operation | Description |
+|-----------|-------------|
+| `memory.store(user_id, content, metadata)` | Store a fact, preference, or event. Scoped to the developer's app. |
+| `memory.recall(user_id, query)` | Retrieve relevant memories for the current context. |
+| `memory.forget(user_id, memory_id)` | Delete a memory. |
+| `memory.update(user_id, memory_id, content)` | Update existing memory. |
+
+**We handle:** Embeddings, vector storage, retrieval, deduplication, summarization, compliance.
+
+**Developers handle:** Their app, their prompts, their UX. Memory is scoped per app—developer controls the namespace.
+
+### The Standard: AI Memory Protocol (AMP)
+
+Mem0, Zep, and LangChain have schemas. AMP is different:
+
+| AMP differentiator | Why it matters |
+|--------------------|----------------|
+| **Model-agnostic** | No tie to OpenAI, Claude, or any provider. Works with any LLM. Mem0/Zep are often shown with specific stacks. |
+| **Compliance in the spec** | Retention, deletion, audit fields, data residency are part of the spec—not bolted on. Enterprise can adopt without custom work. |
+| **Minimal surface** | Store, recall, forget, update. Fewer concepts than graph + vector. Easier to implement and adopt. |
+
+We publish the spec. We are the **reference implementation**. Others can build compatible services.
+
+### The Philosophy: Developer-First
+
+- **App-scoped by default.** Each developer's app has its own memory namespace. No cross-app complexity.
+- **Simple API.** Store, recall, forget. That's it. Developers don't manage consent flows or user dashboards unless they want to.
+- **Privacy as opt-in.** Enterprise can add user consent, export, deletion—we support it. But it's not required for the core product.
+
+---
+
+## How the Platform Works
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                   DEVELOPERS (Our customers)                     │
+│  App A    App B    App C    — each has its own memory namespace  │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   MARROW (Us)                                    │
+│  • Store / Recall / Forget API                                   │
+│  • Embeddings + Vector DB                                        │
+│  • App-scoped namespaces                                         │
+│  • Compliance (SOC2, GDPR)                                       │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   END USERS (Developer's users)                  │
+│  user_id scoped per app. Developer controls what to store/recall │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Flow: Storing a Memory
+
+1. User tells App A: "Remember I prefer window seats on flights."
+2. App A calls: `marrow.store(user_id, "Prefers window seats on flights", { source: "travel_app" })`
+3. Our system: Embeds, stores, indexes. Scoped to App A's namespace.
+4. Memory is available for recall—by App A only (unless developer opts into cross-app).
+
+### Flow: Recalling Memories
+
+1. User asks App A: "What do I like when traveling?"
+2. App A calls: `marrow.recall(user_id, "travel preferences")`
+3. Our system: Retrieves relevant memories from App A's namespace (semantic search).
+4. Returns: `[{ content: "Prefers window seats on flights", ... }]`
+5. App A injects into prompt, gets smart response.
+
+### Optional: User Control (Enterprise)
+
+- **Export, delete, consent** — We support it for enterprise/compliance. Developer opts in.
+- **Not required** for the core product. Most devs want: store, recall, forget. Done.
+
+### Integration (Developer Experience)
+
+```python
+# 5 lines. Memory enabled.
+from marrow import Marrow
+
+marrow = Marrow(api_key="...")
+
+marrow.store(user_id="user_123", content="Prefers short answers")
+results = marrow.recall(user_id="user_123", query="user preferences")
+```
+
+- **SDKs:** Python, JavaScript, more.
+- **Docs:** Stripe-level. Quick start, guides, API reference.
+- **Dashboard:** Usage, logs, consent management.
+
+---
+
+## Our Goal
+
+### North Star
+
+**Become the memory infrastructure standard.** When developers add memory to their AI app, they use us. When model providers add memory to their platforms, they partner with us.
+
+### Milestones
+
+| Phase | Goal | Timeline |
+|-------|------|----------|
+| **1. Launch** | Ship API + SDK. 100 developers using it. | Months 1–3 |
+| **2. Standard** | Publish AI Memory Protocol spec. Open, implementable. | Month 4 |
+| **3. Traction** | 1,000+ apps. Case studies. Model-agnostic proof. | Months 6–12 |
+| **4. Partnership** | Model provider integrates us as optional memory backend. | Year 2 |
+| **5. Default** | We are the default choice. "Memory for AI" = us. | Year 3+ |
+
+---
+
+## Why We Win: Three Differentiators
+
+### 1. Model-Agnostic
+
+- Works with OpenAI, Anthropic, Gemini, open-source, any LLM.
+- No provider lock-in. Provider memory (ChatGPT, etc.) is walled; we're not.
+- Easy to partner with model providers. We enable them; we don't compete.
+
+### 2. Compliance Built In
+
+- SOC 2, GDPR, data residency from day one. Not an add-on.
+- Retention, deletion, audit trails in the spec. Enterprise-ready out of the box.
+- Mem0/Zep: compliance is not their focus. We make it default.
+
+### 3. DX-First (Our Primary Wedge)
+
+- **Go-to-market:** We lead with developer experience. Indie devs, startups, fast iteration.
+- Stripe won on DX. Twilio won on DX. We obsess over: docs, SDKs, quick start.
+- "Add memory in 5 minutes." Developers choose tools that get out of the way.
+- Fast feedback loop. Lower ACV early, but we learn fast and build adoption.
+
+### Narrow Focus
+
+- We do one thing: memory.
+- We don't build models, agents, or apps. We're infrastructure.
+
+---
+
+## How We Win
+
+### Go-to-Market
+
+1. **Developers first.** Launch on Hacker News, Twitter/X, dev communities. Open source the spec. Give generous free tier.
+2. **Content.** "How to add memory to your AI app in 5 minutes." Tutorials, comparisons, best practices.
+3. **Integrations.** LangChain, LlamaIndex, Vercel AI SDK. Be where developers already are.
+4. **Enterprise.** Once we have traction, add sales. SOC 2, SLAs, custom deployments.
+
+### Competitive Moat
+
+| Moat | How we build it |
+|------|-----------------|
+| **Standard** | Publish spec. Get adoption. Defensible. |
+| **Network effects** | More apps → more value for users → more apps. |
+| **Trust** | Compliance, reliability. Hard to copy. |
+| **DX** | Best docs, best SDKs. Switching cost. |
+
+### Risks and Mitigations
+
+| Risk | Mitigation |
+|------|------------|
+| Model providers ship memory (ChatGPT, Claude) | We're model-agnostic. Apps using Claude, Gemini, open-source need memory. Provider memory is walled; we work with any model. |
+| Mem0 wins ($24M head start) | We wedge: DX-first. Model-agnostic. Compliance built in. Different positioning. |
+| Big tech builds it | We move fast. We're focused. Open spec. They may acquire or partner. |
+
+---
+
+## Business Model
+
+- **Free tier:** 10k memories/month. Enough to build and test.
+- **Pro:** $49/mo. 100k memories. Higher limits.
+- **Enterprise:** Custom. SOC 2, SLA, dedicated support.
+
+Usage-based. Pay for what you use. Align with developer success.
+
+---
+
+## Assessment & Challenges
+
+### Competitive Landscape
+
+| Player | What they do | Funding / status |
+|--------|--------------|------------------|
+| **Mem0** | Vector + graph memory for AI agents | $24M Series A, YC |
+| **Zep** | Temporal knowledge graph, Graphiti | Established |
+| **Azen** | Memory layer API (store, retrieve, semantic search) | Live |
+| **memorylayer.ai** | Open-source, multi-memory types, knowledge graph | Open source |
+| **OpenAI** | ChatGPT memory built-in, user-controlled | Shipped |
+
+**The space is crowded.** Model providers are adding memory themselves.
+
+### Main Challenges
+
+| Challenge | Our response |
+|-----------|--------------|
+| **Model providers building memory** | ChatGPT has it; others will follow. We position as infrastructure for *any* model—apps using Claude, Gemini, open-source need memory too. Provider memory is walled; we're model-agnostic. |
+| **App-centric vs user-centric** | We're app-centric by design. Aligns with developers. User-centric (cross-app memory) is a later optional layer, not MVP. |
+| **Standard adoption** | Mem0/Zep won't adopt our spec. We publish early anyway—establishes voice, enables ecosystem. Adoption comes from traction, not ask. |
+| **Developer behavior** | Many devs use RAG + pgvector. We compete on: less code, better UX, compliance out of the box, hosted (no ops). |
+
+### Honest Verdict
+
+| Question | Answer |
+|----------|--------|
+| Is the problem real? | Yes. |
+| Is the solution buildable? | Yes. |
+| Is the space empty? | No. Mem0, Zep, Azen, memorylayer.ai, provider memory exist. |
+| Can we win? | Possible. Need a clear wedge and fast execution. |
+
+### Our Wedge (Defined)
+
+| Differentiator | Role |
+|----------------|------|
+| **Model-agnostic** | Product differentiator. Works with any LLM. No lock-in. |
+| **Compliance built in** | Product differentiator. SOC2, GDPR, data residency from day one. |
+| **DX-first** | **Primary wedge.** Go-to-market. We lead with developer experience. |
+
+**Path:** DX-first GTM (indie devs, startups, fast iteration) → compliance and model-agnostic are built into the product from day one → enterprise and model providers adopt when they need compliance and interoperability.
+
+### Our Plan
+
+1. **DX-first GTM** – Launch to developers. Hacker News, Twitter/X, dev communities. "Add memory in 5 minutes."
+2. **Compliance built in** – SOC2, GDPR, data residency from day one. Not the lead message; it's in the product.
+3. **Model-agnostic** – Works with any LLM. No provider lock-in. Easy to partner.
+4. **Stay app-centric** – Simple API. Store, recall, forget. No consent complexity.
+5. **Publish AMP early** – Spec with compliance in it. Establishes voice. Reference implementation is us.
+
+---
+
+## Summary
+
+| | |
+|---|--|
+| **Problem** | AI has no memory. It's fragmented. Developers rebuild it every time. No standard. |
+| **Solution** | Open memory infrastructure. Developer-first. Model-agnostic. Compliant. |
+| **Product** | API: store, recall, forget. SDKs. Dashboard. Open spec (AI Memory Protocol). |
+| **Goal** | Become the memory standard. Model providers and developers use us. |
+| **Why we win** | DX-first wedge. Model-agnostic. Compliance built in. Open spec. Focus. |
+| **How we win** | Wedge (compliance + DX). Fast execution. Spec early. |
+
+---
+
+*"Marrow: The memory layer for AI. We don't build the models. We give them memory."*
+
+---
+
+## Name
+
+### **Marrow** — trymarrow.io / getmarrow.io
+
+- **Meaning:** The core, the essence. "The marrow of the matter." Memory is the marrow of AI.
+- **Tagline:** "Marrow: The memory layer for AI."
+
+---
+
+## Tech Stack (Built for Scale)
+
+*Architecture designed for billions of memories, millions of users, global latency < 50ms.*
+
+### Core Stack
+
+| Layer | Technology | Why |
+|-------|------------|-----|
+| **API / Gateway** | **Go** (or Rust) | High throughput, low latency, low memory. Stripe, Twilio, Cloudflare use Go. Handles millions of req/s. |
+| **Embeddings Pipeline** | **Python** (FastAPI) | ML ecosystem. OpenAI/Cohere API or self-hosted (sentence-transformers). Async, fast. |
+| **Vector Database** | **Qdrant** or **Pinecone** | Qdrant: open source, scales horizontally, hybrid search. Pinecone: managed, zero-ops at scale. |
+| **Metadata / Relational** | **PostgreSQL** (Neon, Supabase, or self-hosted) | Users, consent, app metadata, billing. Postgres scales to billions of rows. |
+| **Caching** | **Redis** (Upstash or self-hosted) | Rate limits, hot recall cache, session. Sub-ms latency. |
+| **Message Queue** | **Redis Streams** or **Kafka** | Async embedding, batch processing. Decouple ingest from retrieval. |
+
+### Infrastructure
+
+| Component | Technology | Why |
+|-----------|------------|-----|
+| **Orchestration** | **Kubernetes** (EKS, GKE, AKS) | Auto-scaling, multi-region, self-healing. Industry standard at scale. |
+| **Cloud** | **AWS** or **GCP** (multi-cloud later) | Global regions, managed services. Start with one, add redundancy. |
+| **CDN / Edge** | **Cloudflare** or **Fastly** | API edge caching, DDoS protection, < 20ms global latency. |
+| **Observability** | **Datadog** or **Grafana + Prometheus** | Metrics, traces, logs. SLA monitoring. |
+| **Secrets** | **HashiCorp Vault** or **AWS Secrets Manager** | API keys, DB creds. Compliance requirement. |
+
+### Data Flow (Scale-Oriented)
+
+```
+Request → Cloudflare (edge) 
+       → Go API (validate, auth, rate limit)
+       → Redis (cache hit? return)
+       → Miss: Postgres (metadata) + Qdrant (vector search)
+       → Embedding: Python worker (if new store) or pre-computed
+       → Response
+```
+
+### Scale Targets
+
+| Metric | Year 1 | Year 3 | Year 5 |
+|--------|--------|--------|-------|
+| Memories stored | 100M | 10B | 100B+ |
+| Recall QPS | 1K | 100K | 1M+ |
+| Latency p99 | < 100ms | < 50ms | < 30ms |
+| Regions | 1 | 3 | 6+ |
+
+### Why This Stack Wins at Scale
+
+1. **Go/Rust API** – Handles 10x the load of Python/Node per dollar. Critical for margin at scale.
+2. **Dedicated vector DB** – Postgres + pgvector works to ~10M vectors. Beyond that, Qdrant/Pinecone. Plan for billions.
+3. **Async pipeline** – Store doesn't block on embedding. Queue → worker → index. Throughput decoupled.
+4. **Edge caching** – Hot recalls cached at edge. Reduces origin load, improves latency.
+5. **Multi-region** – Data residency (GDPR). Latency for global users. Redundancy.
+
+### Simpler Start (MVP)
+
+*Don't over-engineer day 1. Build for scale in the architecture, not the implementation.*
+
+| Layer | MVP Choice | Scale Path |
+|-------|------------|------------|
+| API | **Python (FastAPI)** | Migrate hot path to Go when needed |
+| Vector DB | **pgvector** (Supabase/Neon) | Migrate to Qdrant at ~10M vectors |
+| Relational | **Supabase** or **Neon** | Same Postgres, scale vertically then shard |
+| Hosting | **Railway** or **Fly.io** | Kubernetes when traffic justifies |
+| Embeddings | **OpenAI API** | Self-host or batch at scale for cost |
+
+**Rule:** Use managed services. Avoid building infra. Focus on the product. Swap components when limits hit.

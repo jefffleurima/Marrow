@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "marrow"
+version = "0.1.0"
+description = "The memory layer for AI. Store, recall, forget—semantic search built in."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Marrow" }]
+keywords = ["ai", "memory", "llm", "embeddings", "vector"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "httpx>=0.24.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/marrow/marrow"
+Documentation = "https://github.com/marrow/marrow#readme"
+Repository = "https://github.com/marrow/marrow"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["marrow*"]
